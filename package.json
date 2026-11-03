@@ -1,0 +1,33 @@
+{
+  "name": "claude-watch",
+  "version": "0.1.0",
+  "description": "Live terminal view of a Claude Code session: main agent, subagents, what each is doing, and token use.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Karim <mhd.mam@gmail.com>",
+  "bin": {
+    "claude-watch": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "ink": "7.1.1",
+    "react": "19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "@types/react": "19.2.2",
+    "typescript": "5.9.3",
+    "vitest": "5.0.5"
+  }
+}
