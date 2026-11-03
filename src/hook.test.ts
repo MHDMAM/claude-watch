@@ -29,6 +29,9 @@ describe("mainTranscriptFor", () => {
   it("maps a subagent transcript to its session transcript", () => {
     expect(mainTranscriptFor("/p/proj/s1/subagents/agent-a1.jsonl")).toBe("/p/proj/s1.jsonl");
     expect(mainTranscriptFor("/p/proj/s1.jsonl")).toBe("/p/proj/s1.jsonl");
+    expect(mainTranscriptFor("C:\\Users\\me\\.claude\\projects\\p\\s1\\subagents\\agent-a1.jsonl")).toBe(
+      "C:\\Users\\me\\.claude\\projects\\p\\s1.jsonl",
+    );
   });
 });
 

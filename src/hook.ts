@@ -20,7 +20,7 @@ export const STATE_DIR = join(APP_DIR, "state");
 
 /** A subagent's own transcript path maps back to its session's main transcript. */
 export function mainTranscriptFor(path: string): string {
-  const m = /^(.*)\/subagents\/[^/]+\.jsonl$/.exec(path);
+  const m = /^(.*)[\\/]subagents[\\/][^\\/]+\.jsonl$/.exec(path);
   return m?.[1] ? `${m[1]}.jsonl` : path;
 }
 

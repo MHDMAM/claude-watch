@@ -22,8 +22,12 @@ interface HookGroup {
   hooks: HookCommand[];
 }
 
+/**
+ * Forward slashes work for Node on every OS and survive both Git Bash and
+ * PowerShell quoting, unlike Windows backslashes.
+ */
 export function hookCommand(cliPath = join(APP_DIR, "dist", "cli.js")): string {
-  return `node "${cliPath}" hook`;
+  return `node "${cliPath.replace(/\\/g, "/")}" hook`;
 }
 
 /** True for any hook entry that runs claude-watch's hook, wherever it's installed. */

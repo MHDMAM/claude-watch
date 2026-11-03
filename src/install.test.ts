@@ -2,7 +2,7 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { addHook, hasHook, install, isOurs, removeHook, uninstall } from "./install.js";
+import { addHook, hasHook, hookCommand, install, isOurs, removeHook, uninstall } from "./install.js";
 
 const CMD = 'node "/x/claude-watch/dist/cli.js" hook';
 const other = { type: "command", command: "/usr/local/bin/cc-status" };
@@ -13,6 +13,14 @@ describe("isOurs", () => {
     expect(isOurs("node /Users/me/.claude/claude-watch/dist/cli.js hook")).toBe(true);
     expect(isOurs("/usr/local/bin/cc-status")).toBe(false);
     expect(isOurs('node "/x/claude-watch/dist/cli.js"')).toBe(false);
+  });
+});
+
+describe("hookCommand", () => {
+  it("uses forward slashes so Windows paths survive shell quoting", () => {
+    expect(hookCommand("C:\\Users\\me\\.claude\\claude-watch\\dist\\cli.js")).toBe(
+      'node "C:/Users/me/.claude/claude-watch/dist/cli.js" hook',
+    );
   });
 });
 
