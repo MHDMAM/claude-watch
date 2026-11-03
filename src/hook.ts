@@ -60,6 +60,18 @@ export function claimSession(sessionId: string, stateDir = STATE_DIR): boolean {
   }
 }
 
+/**
+ * Whether a person is at the terminal running this Claude session. Claude
+ * Code tells hooks via its own env vars; older versions fall back to
+ * terminal hints (macOS: TERM_PROGRAM, Windows Terminal: WT_SESSION).
+ */
+export function isAttended(env: NodeJS.ProcessEnv): boolean {
+  if (env.CI) return false;
+  if (env.CLAUDE_CODE_SESSION_ATTENDED !== undefined) return env.CLAUDE_CODE_SESSION_ATTENDED === "1";
+  if (env.CLAUDE_CODE_ENTRYPOINT !== undefined) return env.CLAUDE_CODE_ENTRYPOINT === "cli";
+  return Boolean(env.TERM_PROGRAM || env.WT_SESSION);
+}
+
 export interface HookDeps {
   config: Config;
   env: NodeJS.ProcessEnv;
@@ -74,7 +86,7 @@ export async function handleHook(input: HookInput, deps: HookDeps): Promise<void
   if (!config.enabled) return;
   if (input.hook_event_name && input.hook_event_name !== "SubagentStart") return;
   if (!input.transcript_path) return log("no transcript_path in hook input");
-  if (!env.TERM_PROGRAM) return; // not in a terminal (SDK, CI, …): never pop windows
+  if (!isAttended(env)) return; // SDK, CI, `claude -p` …: never pop windows
 
   const transcript = mainTranscriptFor(input.transcript_path);
   const sessionId = input.session_id ?? basename(transcript, ".jsonl");

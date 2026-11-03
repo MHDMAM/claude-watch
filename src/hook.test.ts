@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_CONFIG } from "./config.js";
-import { claimSession, countRunningSubagents, handleHook, type HookDeps, mainTranscriptFor } from "./hook.js";
+import { claimSession, countRunningSubagents, handleHook, type HookDeps, isAttended, mainTranscriptFor } from "./hook.js";
 
 async function session() {
   const root = await mkdtemp(join(tmpdir(), "cw-hook-"));
@@ -25,6 +25,25 @@ function deps(stateDir: string, overrides: Partial<HookDeps> = {}): HookDeps {
     ...overrides,
   };
 }
+
+describe("isAttended", () => {
+  it("trusts Claude Code's own signal first", () => {
+    expect(isAttended({ CLAUDE_CODE_SESSION_ATTENDED: "1" })).toBe(true);
+    expect(isAttended({ CLAUDE_CODE_SESSION_ATTENDED: "0", TERM_PROGRAM: "iTerm.app" })).toBe(false);
+    expect(isAttended({ CLAUDE_CODE_ENTRYPOINT: "cli" })).toBe(true);
+    expect(isAttended({ CLAUDE_CODE_ENTRYPOINT: "sdk-ts", WT_SESSION: "x" })).toBe(false);
+  });
+
+  it("falls back to terminal hints on macOS and Windows", () => {
+    expect(isAttended({ TERM_PROGRAM: "iTerm.app" })).toBe(true);
+    expect(isAttended({ WT_SESSION: "guid" })).toBe(true);
+    expect(isAttended({})).toBe(false);
+  });
+
+  it("never opens in CI", () => {
+    expect(isAttended({ CI: "true", CLAUDE_CODE_SESSION_ATTENDED: "1" })).toBe(false);
+  });
+});
 
 describe("mainTranscriptFor", () => {
   it("maps a subagent transcript to its session transcript", () => {
