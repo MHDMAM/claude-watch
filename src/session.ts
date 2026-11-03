@@ -97,11 +97,12 @@ export class SessionWatcher {
     }
 
     for (const tracked of this.agents.values()) {
-      if (await this.refreshMeta(tracked)) changed = true;
+      // Log lines first, so "finished" is stamped with the agent's last activity time.
       for (const entry of await tracked.tail.readNew()) {
         changed = true;
         this.push(applyEntry(tracked.state, entry));
       }
+      if (await this.refreshMeta(tracked)) changed = true;
     }
     return changed;
   }

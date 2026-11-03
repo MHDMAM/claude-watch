@@ -103,6 +103,7 @@ function applyAssistant(state: AgentState, entry: Json, at: number): LogEvent[] 
 
   const events: LogEvent[] = [];
   const content = Array.isArray(message.content) ? message.content : [];
+  if (state.status === "done") return events; // tokens still count; activity stays "done"
   for (const block of content) {
     if (!isObj(block)) continue;
     if (block.type === "tool_use") {
@@ -122,10 +123,8 @@ function applyAssistant(state: AgentState, entry: Json, at: number): LogEvent[] 
     }
   }
 
-  if (state.status !== "done") {
-    state.status = message.stop_reason === "end_turn" && state.pendingTools.size === 0 ? "idle" : "running";
-    if (state.status === "idle") state.activity = "waiting for input";
-  }
+  state.status = message.stop_reason === "end_turn" && state.pendingTools.size === 0 ? "idle" : "running";
+  if (state.status === "idle") state.activity = "waiting for input";
   return events;
 }
 
