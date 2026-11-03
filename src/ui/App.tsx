@@ -1,4 +1,4 @@
-import { Box, Text, useApp, useInput, useStdout } from "ink";
+import { Box, Text, useApp, useInput, useStdin, useStdout } from "ink";
 import { useEffect, useState } from "react";
 import type { SessionSnapshot, SessionWatcher } from "../session.js";
 import { type AgentState, totalTokens } from "../transcript/agent-state.js";
@@ -39,10 +39,17 @@ export function App({ watcher, intervalMs }: { watcher: SessionWatcher; interval
     };
   }, [watcher, intervalMs, stdout]);
 
-  useInput((input) => {
-    if (input === "q") exit();
-    if (input === "t") setFullLedger((v) => !v);
-  });
+  // Git Bash's mintty window has no raw mode: skip keys there (Ctrl+C still quits).
+  // Ink reports stdin.isTTY here, which is undefined (not false) for pipes.
+  const isRawModeSupported = useStdin().isRawModeSupported === true;
+  useInput(
+    (input) => {
+      if (input === "q") exit();
+      if (input === "t") setFullLedger((v) => !v);
+    },
+    { isActive: isRawModeSupported },
+  );
+  const keysHint = isRawModeSupported ? "q quit · t all agents' tokens" : "Ctrl+C quit";
 
   const now = Date.now();
   const width = Math.max(40, columns - 2);
@@ -73,7 +80,7 @@ export function App({ watcher, intervalMs }: { watcher: SessionWatcher; interval
           <Text dimColor>session {snap.sessionId.slice(0, 8)}</Text>
         </Box>
         <LedgerTable ledger={ledger} width={width} spinner={spinner} />
-        <Text dimColor>t back · q quit</Text>
+        <Text dimColor>{isRawModeSupported ? "t back · q quit" : "Ctrl+C quit"}</Text>
       </Box>
     );
   }
@@ -135,7 +142,7 @@ export function App({ watcher, intervalMs }: { watcher: SessionWatcher; interval
       </Box>
 
       <Box justifyContent="space-between">
-        <Text dimColor>q quit · t all agents' tokens</Text>
+        <Text dimColor>{keysHint}</Text>
         <Text>
           <Text dimColor>agents </Text>
           {running}/{snap.agents.length}
