@@ -38,13 +38,34 @@ from those logs, not spent by it.
 
 ## Setup
 
-Requires Node 20+ and macOS. The auto-open needs iTerm2, or Terminal.app as a
-fallback that opens a new window.
+Requires Node 20+. The view runs in any terminal. Where it can open by itself:
+
+| OS      | Claude running in…                         | `split` | `tab` | `window`               |
+|---------|--------------------------------------------|:-------:|:-----:|------------------------|
+| macOS   | iTerm2                                     | ✓       | ✓     | ✓ iTerm2 window        |
+| macOS   | Terminal.app / other                       |         |       | ✓ Terminal.app window  |
+| Windows | Windows Terminal (PowerShell or Git Bash)  | ✓       | ✓     | ✓ new console window   |
+| Windows | plain PowerShell console, Git Bash (mintty)|         |       | ✓ new console window   |
+| Linux   | any                                        |         |       | not yet: run it by hand |
+
+Placements that don't fit are skipped, so the default order
+(`split` → `tab` → `window`) works everywhere.
+
+**macOS / Linux / Git Bash**
 
 ```sh
 git clone https://github.com/<you>/claude-watch ~/.claude/claude-watch
 cd ~/.claude/claude-watch
 npm ci && npm run build
+node dist/cli.js install-hook
+```
+
+**Windows PowerShell**
+
+```powershell
+git clone https://github.com/<you>/claude-watch "$HOME\.claude\claude-watch"
+cd "$HOME\.claude\claude-watch"
+npm ci; npm run build
 node dist/cli.js install-hook
 ```
 
@@ -56,8 +77,12 @@ It reformats the settings file with 2-space indentation.
 
 Then restart any open Claude Code sessions.
 
-The first time the hook opens a pane, macOS asks whether your terminal may
-control iTerm2. Allow it, or no pane will open.
+On macOS, the first time the hook opens a pane, macOS asks whether your
+terminal may control iTerm2. Allow it, or no pane will open.
+
+On Windows, `install-hook` writes the path with forward slashes
+(`C:/Users/you/...`), which works whether Claude Code runs hooks through Git
+Bash or PowerShell.
 
 Other options:
 
@@ -127,7 +152,7 @@ flowchart LR
     A -. writes .-> L2[("subagents/agent-*.jsonl<br/>agent-*.meta.json")]
     A -- "fires SubagentStart" --> H["claude-watch hook"]
   end
-  H -- "1st time in this session" --> O["osascript → iTerm2<br/>split / tab / window"]
+  H -- "1st time in this session" --> O["iTerm2 (osascript) or<br/>Windows Terminal (wt.exe)<br/>split / tab / window"]
   O --> W["claude-watch view"]
   L1 -- "read every 500 ms" --> W
   L2 -- "read every 500 ms" --> W
@@ -149,14 +174,19 @@ log path on stdin. The hook:
 - if that count reaches `minSubagents`, claims a once-per-session marker in
   `state/`. File creation is atomic, so two agents starting together can't
   open two views;
-- asks iTerm2 through AppleScript to split Claude's pane, which it finds by
-  `$ITERM_SESSION_ID`. If that fails it tries a tab, then a window, following
-  `placement` in the config;
+- opens the view, trying each `placement` in order:
+  - **macOS**: AppleScript asks iTerm2 to split Claude's pane (found by
+    `$ITERM_SESSION_ID`) or add a tab; otherwise it opens a new window.
+  - **Windows**: inside Windows Terminal (`$WT_SESSION`), `wt.exe -w 0`
+    splits the current window or adds a tab; otherwise `cmd /c start` opens a
+    new console window.
 - gives keyboard focus back to Claude, so your typing isn't interrupted.
 
 It always exits 0 and prints nothing, so it can't block or change Claude. It
-does nothing when Claude isn't running in a terminal (SDK, CI). Its decisions
-are logged to `state/hook.log`.
+only opens anything when a person is using Claude in a terminal: it checks
+Claude Code's `CLAUDE_CODE_SESSION_ATTENDED` / `CLAUDE_CODE_ENTRYPOINT`, so SDK
+runs, `claude -p` scripts and CI never pop windows. Its decisions are logged to
+`state/hook.log`.
 
 **3. The view follows the logs.** Every 500 ms it reads only the bytes
 appended since the last check, both from the main log and from each subagent's
@@ -194,6 +224,13 @@ A single reply can be split over several log lines that repeat the same
   running: restart Claude Code, or run `install-hook` again. "could not open
   watcher" means macOS blocked iTerm2 automation; allow it in System Settings →
   Privacy & Security → Automation.
+- **Windows: opens a console window instead of a split**: split and tab need
+  Claude to be running inside Windows Terminal. In plain PowerShell or Git
+  Bash's own window, only a new window is possible.
+- **Git Bash (mintty): keys don't work**: mintty doesn't give Node a real
+  console, so `q`/`t` are turned off there and the footer says "Ctrl+C quit".
+  Run Git Bash inside Windows Terminal to get keys, or start the view with
+  `winpty node dist/cli.js`.
 - **Opened once, not again**: that's by design, once per session. Delete
   `state/<session-id>.opened` to allow it again.
 - **Tokens look high**: `tok` counts cache reads too, which make up most of
