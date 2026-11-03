@@ -1,9 +1,7 @@
 #!/usr/bin/env node
-import { render } from "ink";
 import { existsSync } from "node:fs";
 import { loadConfig } from "./config.js";
 import { findLatestTranscript, findTranscriptById, SessionWatcher } from "./session.js";
-import { App } from "./ui/App.js";
 
 const USAGE = `claude-watch — live view of a Claude Code session and its subagents
 
@@ -11,12 +9,19 @@ Usage:
   claude-watch                     watch the most recently active session
   claude-watch <transcript.jsonl>  watch a session by its transcript path
   claude-watch <session-id>        watch a session by id
+  claude-watch hook                run as a Claude Code SubagentStart hook (reads stdin)
 
 Options:
   --interval <ms>   how often to check for changes (default from config, 500)
   -h, --help        show this help`;
 
 async function main(argv: string[]): Promise<number> {
+  if (argv[0] === "hook") {
+    const { runHookFromStdin } = await import("./hook.js");
+    await runHookFromStdin();
+    return 0;
+  }
+
   let target: string | undefined;
   let intervalMs = loadConfig().intervalMs;
 
@@ -42,8 +47,10 @@ async function main(argv: string[]): Promise<number> {
     return 1;
   }
 
+  // Loaded lazily so the hook path stays fast.
+  const [{ render }, React, { App }] = await Promise.all([import("ink"), import("react"), import("./ui/App.js")]);
   const watcher = new SessionWatcher(transcript);
-  const app = render(<App watcher={watcher} intervalMs={intervalMs} />);
+  const app = render(React.createElement(App, { watcher, intervalMs }));
   await app.waitUntilExit();
   return 0;
 }
