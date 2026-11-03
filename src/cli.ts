@@ -9,10 +9,14 @@ Usage:
   claude-watch                     watch the most recently active session
   claude-watch <transcript.jsonl>  watch a session by its transcript path
   claude-watch <session-id>        watch a session by id
-  claude-watch hook                run as a Claude Code SubagentStart hook (reads stdin)
+  claude-watch install-hook        add the auto-open hook to ~/.claude/settings.json
+  claude-watch uninstall-hook      remove it again
+  claude-watch hook                (used by the hook itself; reads stdin)
 
 Options:
   --interval <ms>   how often to check for changes (default from config, 500)
+  --settings <path> settings file for install-hook/uninstall-hook
+  --dry-run         show what install-hook/uninstall-hook would change
   -h, --help        show this help`;
 
 async function main(argv: string[]): Promise<number> {
@@ -20,6 +24,19 @@ async function main(argv: string[]): Promise<number> {
     const { runHookFromStdin } = await import("./hook.js");
     await runHookFromStdin();
     return 0;
+  }
+
+  if (argv[0] === "install-hook" || argv[0] === "uninstall-hook") {
+    const { install, uninstall } = await import("./install.js");
+    const at = argv.indexOf("--settings");
+    const opts = { settingsPath: at >= 0 ? argv[at + 1] : undefined, dryRun: argv.includes("--dry-run") };
+    try {
+      (argv[0] === "install-hook" ? install : uninstall)(opts);
+      return 0;
+    } catch (err) {
+      console.error(`Could not update settings: ${err instanceof Error ? err.message : String(err)}`);
+      return 1;
+    }
   }
 
   let target: string | undefined;
