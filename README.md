@@ -97,7 +97,25 @@ node ~/.claude/claude-watch/dist/cli.js <session-id>
 node ~/.claude/claude-watch/dist/cli.js <path/to/session.jsonl>
 ```
 
-Press `q` to quit. When the hook opened the view, `q` also closes the pane.
+Keys: `q` quits (and closes the pane when the hook opened it); `t` switches to
+the full token ledger listing every agent.
+
+### Token ledger
+
+Below the agent boxes, a ledger keeps running token totals per agent:
+
+| column     | meaning                                   |
+|------------|-------------------------------------------|
+| `in`       | fresh input tokens (not from cache)       |
+| `cache rd` | input tokens read from the prompt cache   |
+| `cache wr` | input tokens written to the prompt cache  |
+| `out`      | output tokens the agent generated         |
+| `total`    | all four added together                   |
+
+The **total** row always covers the main session and *every* subagent,
+including finished ones. To save space, boxes for older finished agents fold
+into a "+N earlier finished" line, and the compact ledger sums them into a
+"+N more" row. Press `t` to list every agent on its own line.
 
 ## How it works
 
