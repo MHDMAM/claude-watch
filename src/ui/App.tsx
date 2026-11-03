@@ -11,10 +11,13 @@ import {
   shortModel,
   truncate,
 } from "./format.js";
+import { buildLedger, type LedgerRow } from "./ledger.js";
 
 const SPINNER = ["◐", "◓", "◑", "◒"];
 const BOX_WIDTH = 30;
 const LOG_LINES = 8;
+/** Agents listed individually in the compact ledger; the rest are summed. */
+const LEDGER_ROWS = 6;
 
 export function App({ watcher, intervalMs }: { watcher: SessionWatcher; intervalMs: number }) {
   const { exit } = useApp();
@@ -22,6 +25,7 @@ export function App({ watcher, intervalMs }: { watcher: SessionWatcher; interval
   const [snap, setSnap] = useState<SessionSnapshot>(() => watcher.snapshot());
   const [tick, setTick] = useState(0);
   const [columns, setColumns] = useState(stdout.columns || 100);
+  const [fullLedger, setFullLedger] = useState(false);
 
   useEffect(() => {
     watcher.start(intervalMs, (s) => setSnap({ ...s, agents: [...s.agents], events: [...s.events] }));
@@ -37,16 +41,42 @@ export function App({ watcher, intervalMs }: { watcher: SessionWatcher; interval
 
   useInput((input) => {
     if (input === "q") exit();
+    if (input === "t") setFullLedger((v) => !v);
   });
 
   const now = Date.now();
   const width = Math.max(40, columns - 2);
   const all = [snap.main, ...snap.agents];
-  const grand = all.reduce((sum, a) => sum + totalTokens(a.tokens), 0);
   const running = snap.agents.filter((a) => a.status === "running").length;
   const labels = new Map(all.map((a) => [a.id, a]));
   const perRow = Math.max(1, Math.floor(width / (BOX_WIDTH + 1)));
   const spinner = SPINNER[tick % SPINNER.length] ?? "◐";
+  const ledger = buildLedger(snap.main, snap.agents, fullLedger ? Infinity : LEDGER_ROWS);
+
+  // Boxes: every active agent, plus the newest finished ones to fill the last row.
+  const active = snap.agents.filter((a) => a.status !== "done");
+  const done = snap.agents
+    .filter((a) => a.status === "done")
+    .sort((a, b) => (b.lastActivityAt ?? 0) - (a.lastActivityAt ?? 0));
+  const doneSlots = perRow - (active.length % perRow); // fill the last row (or one full row)
+  const keepDone = new Set(done.slice(0, doneSlots).map((a) => a.id));
+  const boxes = snap.agents.filter((a) => a.status !== "done" || keepDone.has(a.id));
+  const hiddenDone = done.length - keepDone.size;
+
+  if (fullLedger) {
+    return (
+      <Box flexDirection="column" width={width}>
+        <Box justifyContent="space-between">
+          <Text bold>
+            TOKEN LEDGER <Text dimColor>· all {all.length} agents</Text>
+          </Text>
+          <Text dimColor>session {snap.sessionId.slice(0, 8)}</Text>
+        </Box>
+        <LedgerTable ledger={ledger} width={width} spinner={spinner} />
+        <Text dimColor>t back · q quit</Text>
+      </Box>
+    );
+  }
 
   return (
     <Box flexDirection="column" width={width}>
@@ -73,11 +103,20 @@ export function App({ watcher, intervalMs }: { watcher: SessionWatcher; interval
         </Box>
       )}
 
-      <Box flexWrap="wrap" columnGap={1} width={width} justifyContent={snap.agents.length < perRow ? "center" : "flex-start"}>
-        {snap.agents.map((a) => (
+      <Box flexWrap="wrap" columnGap={1} width={width} justifyContent={boxes.length < perRow ? "center" : "flex-start"}>
+        {boxes.map((a) => (
           <AgentBox key={a.id} agent={a} now={now} spinner={spinner} width={BOX_WIDTH} />
         ))}
       </Box>
+      {hiddenDone > 0 && (
+        <Box justifyContent="center">
+          <Text dimColor>
+            + {hiddenDone} earlier finished agent{hiddenDone === 1 ? "" : "s"} (still counted in the token ledger)
+          </Text>
+        </Box>
+      )}
+
+      <LedgerTable ledger={ledger} width={width} spinner={spinner} />
 
       <Box flexDirection="column" borderStyle="single" borderColor="gray" paddingX={1} marginTop={1}>
         <Text dimColor>session log</Text>
@@ -96,14 +135,58 @@ export function App({ watcher, intervalMs }: { watcher: SessionWatcher; interval
       </Box>
 
       <Box justifyContent="space-between">
-        <Text dimColor>q quit</Text>
+        <Text dimColor>q quit · t all agents' tokens</Text>
         <Text>
           <Text dimColor>agents </Text>
           {running}/{snap.agents.length}
-          <Text dimColor> · total tokens </Text>
-          <Text bold>{formatTokens(grand)}</Text>
+          <Text dimColor> running · in </Text>
+          {formatTokens(ledger.total.tokens.input + ledger.total.tokens.cacheRead + ledger.total.tokens.cacheWrite)}
+          <Text dimColor> · out </Text>
+          {formatTokens(ledger.total.tokens.output)}
+          <Text dimColor> · total </Text>
+          <Text bold>{formatTokens(ledger.total.total)}</Text>
         </Text>
       </Box>
+    </Box>
+  );
+}
+
+const NUM = 9;
+const COLUMNS: Array<[string, (r: LedgerRow) => number]> = [
+  ["in", (r) => r.tokens.input],
+  ["cache rd", (r) => r.tokens.cacheRead],
+  ["cache wr", (r) => r.tokens.cacheWrite],
+  ["out", (r) => r.tokens.output],
+  ["total", (r) => r.total],
+];
+
+function LedgerTable({ ledger, width, spinner }: { ledger: ReturnType<typeof buildLedger>; width: number; spinner: string }) {
+  const nameWidth = Math.max(10, width - 4 - 2 - COLUMNS.length * NUM);
+  const nums = (r: LedgerRow) => COLUMNS.map(([, get]) => formatTokens(get(r)).padStart(NUM)).join("");
+
+  const line = (r: LedgerRow, opts: { bold?: boolean; dim?: boolean } = {}) => {
+    const icon = r.status === "done" ? "✓" : r.status === "idle" ? "○" : r.status === "running" ? spinner : " ";
+    const color = r.id === "total" || r.id === "rest" ? undefined : FAMILY_COLOR[modelFamily(r.model)];
+    return (
+      <Text key={r.id} wrap="truncate-end" bold={opts.bold} dimColor={opts.dim}>
+        <Text color={r.status === "done" ? "green" : color}>{icon} </Text>
+        <Text color={color}>{truncate(r.label, nameWidth).padEnd(nameWidth)}</Text>
+        {nums(r)}
+      </Text>
+    );
+  };
+
+  return (
+    <Box flexDirection="column" borderStyle="single" borderColor="gray" paddingX={1} marginTop={1}>
+      <Text dimColor wrap="truncate-end">
+        {"  "}
+        {"token ledger".padEnd(nameWidth)}
+        {COLUMNS.map(([h]) => h.padStart(NUM)).join("")}
+      </Text>
+      {ledger.rows.map((r) => line(r))}
+      {ledger.rest && line(ledger.rest, { dim: true })}
+      <Text dimColor>{"─".repeat(Math.max(0, width - 4))}</Text>
+      {line(ledger.total, { bold: true })}
     </Box>
   );
 }
