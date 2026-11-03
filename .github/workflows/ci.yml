@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - name: CLI smoke test
+        run: node dist/cli.js --help
+      - name: install-hook round trip
+        shell: bash
+        run: |
+          settings="$RUNNER_TEMP/settings.json"
+          node dist/cli.js install-hook --settings "$settings"
+          grep -q '/dist/cli.js\\" hook' "$settings"   # forward slashes on every OS
+          node dist/cli.js uninstall-hook --settings "$settings"
+          test "$(cat "$settings")" = "{}"
