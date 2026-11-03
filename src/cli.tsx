@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { render } from "ink";
 import { existsSync } from "node:fs";
+import { loadConfig } from "./config.js";
 import { findLatestTranscript, findTranscriptById, SessionWatcher } from "./session.js";
 import { App } from "./ui/App.js";
 
@@ -12,12 +13,12 @@ Usage:
   claude-watch <session-id>        watch a session by id
 
 Options:
-  --interval <ms>   how often to check for changes (default 500)
+  --interval <ms>   how often to check for changes (default from config, 500)
   -h, --help        show this help`;
 
 async function main(argv: string[]): Promise<number> {
   let target: string | undefined;
-  let intervalMs = 500;
+  let intervalMs = loadConfig().intervalMs;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];

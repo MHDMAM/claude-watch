@@ -1,0 +1,8 @@
+{
+  "enabled": true,
+  "placement": ["split", "tab", "window"],
+  "splitDirection": "vertical",
+  "minSubagents": 1,
+  "keepFocus": true,
+  "intervalMs": 500
+}
