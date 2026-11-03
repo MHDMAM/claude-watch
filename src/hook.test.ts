@@ -18,6 +18,7 @@ function deps(stateDir: string, overrides: Partial<HookDeps> = {}): HookDeps {
   return {
     config: DEFAULT_CONFIG,
     env: { TERM_PROGRAM: "iTerm.app", ITERM_SESSION_ID: "w0t0p0:ABC" },
+    platform: "darwin",
     stateDir,
     launch: vi.fn(async () => ({ placement: "split" as const, errors: [] })),
     log: () => {},
@@ -64,7 +65,8 @@ describe("handleHook", () => {
     await handleHook({ ...input, agent_id: "b" }, d);
     expect(d.launch).toHaveBeenCalledTimes(1);
     const [ctx] = vi.mocked(d.launch).mock.calls[0]!;
-    expect(ctx.command).toContain(transcript);
+    expect(ctx.argv.at(-1)).toBe(transcript);
+    expect(ctx.platform).toBe("darwin");
     expect(ctx.itermSessionId).toBe("w0t0p0:ABC");
   });
 

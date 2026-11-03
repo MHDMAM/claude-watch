@@ -1,7 +1,7 @@
 import { appendFileSync, closeSync, mkdirSync, openSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { APP_DIR, type Config, loadConfig } from "./config.js";
-import { launch, shQuote } from "./launcher.js";
+import { launch } from "./launcher.js";
 
 /**
  * Claude Code `SubagentStart` hook. Opens the watcher once per session when
@@ -63,6 +63,7 @@ export function claimSession(sessionId: string, stateDir = STATE_DIR): boolean {
 export interface HookDeps {
   config: Config;
   env: NodeJS.ProcessEnv;
+  platform: NodeJS.Platform;
   stateDir: string;
   launch: typeof launch;
   log: (line: string) => void;
@@ -81,11 +82,15 @@ export async function handleHook(input: HookInput, deps: HookDeps): Promise<void
   if (running < config.minSubagents) return;
   if (!claimSession(sessionId, deps.stateDir)) return;
 
-  const cli = join(APP_DIR, "dist", "cli.js");
-  // Leading space keeps it out of shell history; exec closes the pane on quit.
-  const command = ` exec ${shQuote(process.execPath)} ${shQuote(cli)} ${shQuote(transcript)}`;
+  const argv = [process.execPath, join(APP_DIR, "dist", "cli.js"), transcript];
   const result = await deps.launch(
-    { command, termProgram: env.TERM_PROGRAM, itermSessionId: env.ITERM_SESSION_ID },
+    {
+      argv,
+      platform: deps.platform,
+      termProgram: env.TERM_PROGRAM,
+      itermSessionId: env.ITERM_SESSION_ID,
+      wtSession: env.WT_SESSION,
+    },
     config,
   );
   log(
@@ -106,7 +111,14 @@ export async function runHookFromStdin(): Promise<void> {
   };
   try {
     const input = JSON.parse(await readStdin()) as HookInput;
-    await handleHook(input, { config: loadConfig(), env: process.env, stateDir: STATE_DIR, launch, log });
+    await handleHook(input, {
+      config: loadConfig(),
+      env: process.env,
+      platform: process.platform,
+      stateDir: STATE_DIR,
+      launch,
+      log,
+    });
   } catch (err) {
     log(`hook error: ${err instanceof Error ? err.message : String(err)}`);
   }
