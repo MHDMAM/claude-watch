@@ -127,15 +127,24 @@ the full token ledger listing every agent.
 
 ### Token ledger
 
-Below the agent boxes, a ledger keeps running token totals per agent:
+Below the agent boxes, a ledger keeps running token totals per agent. The
+header `in  cache rd  cache wr  out  total` is five columns, read as
+*input | cache read | cache write | output | total*:
 
-| column     | meaning                                   |
-|------------|-------------------------------------------|
-| `in`       | fresh input tokens (not from cache)       |
-| `cache rd` | input tokens read from the prompt cache   |
-| `cache wr` | input tokens written to the prompt cache  |
-| `out`      | output tokens the agent generated         |
-| `total`    | all four added together                   |
+| column     | meaning                                   | relative cost¹         |
+|------------|-------------------------------------------|------------------------|
+| `in`       | fresh input tokens (not from cache)       | 1× input price         |
+| `cache rd` | input tokens read from the prompt cache   | ~0.1× input price      |
+| `cache wr` | input tokens written to the prompt cache  | ~1.25× (5 min) / 2× (1 h) |
+| `out`      | output tokens the agent generated         | output price           |
+| `total`    | all four added together                   | —                      |
+
+¹ Approximate Anthropic API pricing multipliers, shown only to help read the
+numbers; the ledger counts tokens, not money.
+
+`in`, `cache rd` and `cache wr` together are everything the model read. In a
+long session `cache rd` is usually by far the largest column, because the
+whole conversation history is re-read from the cache on every turn.
 
 The **total** row always covers the main session and *every* subagent,
 including finished ones. To save space, boxes for older finished agents fold
